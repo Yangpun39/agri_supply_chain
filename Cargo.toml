@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/hack1_backend"
+]
+resolver = "2"

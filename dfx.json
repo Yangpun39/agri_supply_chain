@@ -1,0 +1,27 @@
+{
+  "canisters": {
+    "hack1_backend": {
+      "candid": "src/hack1_backend/hack1_backend.did",
+      "package": "hack1_backend",
+      "type": "rust"
+    },
+    "hack1_frontend": {
+      "dependencies": [
+        "hack1_backend"
+      ],
+      "source": [
+        "src/hack1_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "hack1_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
