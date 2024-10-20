@@ -1,3 +1,65 @@
+type Agriculture = record {
+  verifying_key : text;
+  data : text;
+  signing_key : text;
+};
+type Distributor = record {
+  permission : opt vec principal;
+  signature : text;
+  product_id : opt vec text;
+  data : text;
+};
+type Farmer = record {
+  permission : opt vec principal;
+  signature : text;
+  product_id : opt vec text;
+  data : text;
+};
+type Product = record {
+  supplier : text;
+  name : text;
+  description : text;
+  end_date : nat64;
+  stock_level : nat64;
+  start_date : nat64;
+  promotion_description : opt text;
+  umbrella_brand : text;
+  regular_price : float64;
+  brand : text;
+  original_price : float64;
+  category_id : nat64;
+  price_after_promotion : float64;
+};
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : vec Product; Err : text };
+type Result_2 = variant { Ok : Agriculture; Err : text };
+type Result_3 = variant { Ok : Distributor; Err : text };
+type Result_4 = variant { Ok : Farmer; Err : text };
+type Result_5 = variant { Ok : Product; Err : text };
+type Result_6 = variant { Ok : bool; Err : text };
 service : {
-    "greet": (text) -> (text) query;
+  api_add_distributor_product : (text, Product) -> (Result);
+  api_add_farmer_product : (text, Product) -> (Result);
+  api_add_retailer_product : (text, Product) -> (Result);
+  api_create_account : (Agriculture) -> (Result);
+  api_create_distributor : (text, text) -> (Result);
+  api_create_farmer : (text, text) -> (Result);
+  api_create_retailer : (text, text) -> (Result);
+  api_delete_account : (principal) -> (Result);
+  api_delete_product : (text) -> (Result);
+  api_get_all_product : () -> (Result_1) query;
+  api_get_my_account : () -> (Result_2) query;
+  api_get_my_distributor : () -> (Result_3) query;
+  api_get_my_farmer : () -> (Result_4) query;
+  api_get_my_product : (text) -> (Result_5) query;
+  api_get_my_retailer : () -> (Result_4) query;
+  api_get_product_distributor : () -> (Result_1) query;
+  api_get_product_farmer : () -> (Result_1) query;
+  api_get_product_retailer : () -> (Result_1) query;
+  api_update_account : (Agriculture) -> (Result);
+  api_update_distributor : (Farmer) -> (Result);
+  api_update_farmer : (Farmer) -> (Result);
+  api_update_product : (text, Product) -> (Result);
+  api_update_retailer : (Farmer) -> (Result);
+  api_verification : (principal, text) -> (Result_6) query;
 }

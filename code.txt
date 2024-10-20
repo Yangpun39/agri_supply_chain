@@ -1,0 +1,1688 @@
+pub mod admin_queries_api;
+mod product;
+pub mod user_queries_api;
+
+#[ic_cdk::query(guard=guard_check_admin)]
+pub fn api_get_my_account() -> Result<crate::models::agriculture::Agriculture, String> {
+    with_read_state(|state| match state.agriculture_department.get(&ic_cdk::api::caller()) {
+        Some(acc) => Ok(acc),
+        None => Err(String::from(
+            crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+        )),
+    })
+}
+
+
+use crate::with_read_state;
+
+// queary function to retrive product data.
+#[ic_cdk::query]
+pub fn api_get_my_product(product_id: String) -> Result<crate::models::product::Product, String> {
+    with_read_state(|state| match state.product.get(&product_id) {
+        Some(acc) => Ok(acc),
+        None => Err(String::from(
+            crate::utils::constants::ERROR_PRODUCT_NOT_REGISTERED,
+        )),
+    })
+}
+
+// function to get all the products specfic of the retailer.
+#[ic_cdk::query]
+pub fn api_get_all_product() -> Result<Vec<crate::models::product::Product>, String> {
+    with_read_state(|state| {
+        let products: Vec<_> = state.product.iter().map(|(_, product)| product.clone()).collect();
+        if products.is_empty() {
+            Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+        } else {
+            Ok(products)
+        }
+    })
+}
+use crate::with_read_state;
+
+#[ic_cdk::query]
+pub fn api_get_my_farmer() -> Result<crate::models::farmer::Farmer, String> {
+    with_read_state(|state| match state.farmer.get(&ic_cdk::api::caller()) {
+        Some(acc) => Ok(acc),
+        None => Err(String::from(
+            crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+        )),
+    })
+}
+#[ic_cdk::query]
+pub fn api_get_my_distributor() -> Result<crate::models::distributor::Distributor, String> {
+    with_read_state(|state| match state.distributor.get(&ic_cdk::api::caller()) {
+        Some(acc) => Ok(acc),
+        None => Err(String::from(
+            crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+        )),
+    })
+}
+#[ic_cdk::query]
+pub fn api_get_my_retailer() -> Result<crate::models::retailer_types::RetailerProfile, String> {
+    with_read_state(|state| match state.retailer.get(&ic_cdk::api::caller()) {
+        Some(acc) => Ok(acc),
+        None => Err(String::from(
+            crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+        )),
+    })
+}
+#[ic_cdk::query]
+pub fn api_get_product_farmer() -> Result<Vec<crate::models::product::Product>, String> {
+    with_read_state(|state| {
+        if let Some(retailer_profile) = state.farmer.get(&ic_cdk::api::caller()) {
+            if let Some(promo_ids) = &retailer_profile.product_id {
+                let mut promotions = Vec::new();
+                for promo_id in promo_ids {
+                    if let Some(promo) = state.product.get(promo_id) {
+                        promotions.push(promo.clone());
+                    } else {
+                        return Err(format!("Promotion ID {} not found", promo_id));
+                    }
+                }
+                Ok(promotions)
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+        }
+    })
+}
+
+#[ic_cdk::query]
+pub fn api_get_product_distributor() -> Result<Vec<crate::models::product::Product>, String> {
+    with_read_state(|state| {
+        if let Some(retailer_profile) = state.distributor.get(&ic_cdk::api::caller()) {
+            if let Some(promo_ids) = &retailer_profile.product_id {
+                let mut promotions = Vec::new();
+                for promo_id in promo_ids {
+                    if let Some(promo) = state.product.get(promo_id) {
+                        promotions.push(promo.clone());
+                    } else {
+                        return Err(format!("Promotion ID {} not found", promo_id));
+                    }
+                }
+                Ok(promotions)
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+        }
+    })
+}
+
+#[ic_cdk::query]
+pub fn api_get_product_retailer() -> Result<Vec<crate::models::product::Product>, String> {
+    with_read_state(|state| {
+        if let Some(retailer_profile) = state.retailer.get(&ic_cdk::api::caller()) {
+            if let Some(promo_ids) = &retailer_profile.product_id {
+                let mut promotions = Vec::new();
+                for promo_id in promo_ids {
+                    if let Some(promo) = state.product.get(promo_id) {
+                        promotions.push(promo.clone());
+                    } else {
+                        return Err(format!("Promotion ID {} not found", promo_id));
+                    }
+                }
+                Ok(promotions)
+            } else {
+                Ok(Vec::new())
+            }
+        } else {
+            Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+        }
+    })
+}
+
+use crate::with_write_state;
+
+pub fn controller_create_account(
+    args: crate::models::agriculture::Agriculture,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if state.agriculture_department.contains_key(&ic_cdk::api::caller()) {
+            return Err(String::from(
+                crate::utils::constants::WARNING_ACCOUNT_EXISTS,
+            ));
+        } 
+        state.agriculture_department.insert(ic_cdk::api::caller(), args);
+        state
+        .user
+        .insert(ic_cdk::api::caller(), "admin".to_string());
+
+        Ok(())
+    })
+}
+pub fn controller_update_account(
+    args: crate::models::agriculture::Agriculture,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(existing_profile) = state.agriculture_department.get(&ic_cdk::api::caller()) {
+            let updated_profile = crate::models::agriculture::Agriculture {
+                data: if args.data.is_empty() {
+                    existing_profile.data.clone()
+                } else {
+                    args.data.clone()
+                },
+                signing_key: if args.signing_key.is_empty() {
+                    existing_profile.signing_key.clone()
+                } else {
+                    args.signing_key.clone()
+                },
+                verifying_key: if args.verifying_key.is_empty() {
+                    existing_profile.verifying_key.clone()
+                } else {
+                    args.verifying_key.clone()
+                },
+            };
+
+            // Update the stored profile
+            state.agriculture_department.insert(ic_cdk::api::caller(), updated_profile);
+            Ok(())
+        } else {
+            Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+        }
+    })
+}
+
+
+
+pub fn controller_delete_account(args: candid::Principal) -> Result<(), String> {
+    with_write_state(|state| {
+        match state.user.get(&args) {
+            Some(account_type) => {
+                match account_type.as_str() {
+                    "distributor" => {
+                        state.distributor.remove(&args);
+                        state.user.remove(&args);
+                        Ok(())
+                    }
+                    "retailer" => {
+                        state.retailer.remove(&args);
+                         state.user.remove(&args);
+                        Ok(())
+                    }
+                    "farmer" => {
+                        state.farmer.remove(&args);
+                         state.user.remove(&args);
+                        Ok(())
+                    }
+                    "admin" => Err(String::from("Admin accounts cannot be deleted")),
+                    _ => Err(String::from("Unknown account type")),
+                }
+            }
+            None => Err(String::from(crate::utils::constants:: ERROR_ACCOUNT_NOT_REGISTERED)),
+        }
+    })
+}
+// // pub fn controller_subscribe_sku(
+// //     key: String, value: String
+// // ) -> Result<(), String> {
+// //     with_write_state(|state| {
+// //         if let Some(mut existing_profile) = state.account.get(&ic_cdk::api::caller()) {
+// //             match &mut existing_profile.sku_list {
+// //                 Some(sku_list) => {
+// //                     sku_list.insert(key, value); 
+// //                 }
+// //                 None => {
+// //                     let mut new_sku_list = HashMap::new();
+// //                     new_sku_list.insert(key, value);
+// //                     existing_profile.sku_list = Some(new_sku_list); 
+// //                 }
+// //             }
+// //             state.account.insert(ic_cdk::api::caller(), existing_profile);
+// //             Ok(())
+// //         } else {
+// //             Err(String::from(crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED))
+// //         }
+// //     })
+// // }
+use crate::utils::guards::*;
+
+
+//customer account creation
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_create_account(args: crate::models::agriculture::Agriculture) -> Result<String, String> {
+    super::admin_controller::controller_create_account(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_CREATED,
+    ))
+}
+// //customer account updation
+#[ic_cdk::update(guard=guard_check_admin)]
+pub fn api_update_account(args: crate::models::agriculture::Agriculture) -> Result<String, String> {
+    super::admin_controller::controller_update_account(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_UPDATED,
+    ))
+}
+#[ic_cdk::update(guard=guard_check_admin)]
+pub fn api_delete_account(args:candid::Principal) -> Result<String, String> {
+    super::admin_controller::controller_delete_account(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_UPDATED,
+    ))
+}
+
+// #[ic_cdk::update]
+// pub fn api_subscription(key:String,value: String) -> Result<String, String> {
+//     super::accounts_controller::controller_subscribe_sku(key,value).map_err(|err| {
+//         format!(
+//             "{}{}",
+//             crate::utils::constants::ERROR_ACCOUNT_ERROR,
+//             err.to_string()
+//         )
+//     })?;
+
+//     Ok(String::from(
+//         crate::utils::constants::SUBSCRIPTION_SUCCESSFUL,
+//     ))
+// }
+mod admin_controller;
+pub mod admin_update_api;
+pub mod user_update_api;
+mod products_update_api;
+mod products_controller;
+mod user_controller;
+// mod employee_controller;
+// mod employee_update_api;
+
+use crate::with_write_state;
+pub fn controller_product_farmer(
+    key: &str,
+    args: crate::models::product::Product,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(mut retailer_profile) = state.farmer.get(&ic_cdk::api::caller()) {
+            if state.product.contains_key(&key.to_string()) {
+                return Err(String::from(
+                    crate::utils::constants::WARNING_PROMOTION_EXISTS,
+                ));
+            }
+            state.product.insert(key.to_string(), args);
+            if let Some(promo_ids) = &mut retailer_profile.product_id {
+                promo_ids.push(key.to_string());
+            } else {
+                retailer_profile.product_id = Some(vec![key.to_string()]);
+            }
+            state
+                .farmer
+                .insert(ic_cdk::api::caller(), retailer_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+pub fn controller_product_distributor(
+    key: &str,
+    args: crate::models::product::Product,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(mut retailer_profile) = state.distributor.get(&ic_cdk::api::caller()) {
+            if state.product.contains_key(&key.to_string()) {
+                return Err(String::from(
+                    crate::utils::constants::WARNING_PROMOTION_EXISTS,
+                ));
+            }
+            state.product.insert(key.to_string(), args);
+            if let Some(promo_ids) = &mut retailer_profile.product_id {
+                promo_ids.push(key.to_string());
+            } else {
+                retailer_profile.product_id = Some(vec![key.to_string()]);
+            }
+            state
+                .distributor
+                .insert(ic_cdk::api::caller(), retailer_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+pub fn controller_product_retailer(
+    key: &str,
+    args: crate::models::product::Product,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(mut retailer_profile) = state.retailer.get(&ic_cdk::api::caller()) {
+            if state.product.contains_key(&key.to_string()) {
+                return Err(String::from(
+                    crate::utils::constants::WARNING_PROMOTION_EXISTS,
+                ));
+            }
+            state.product.insert(key.to_string(), args);
+            if let Some(promo_ids) = &mut retailer_profile.product_id {
+                promo_ids.push(key.to_string());
+            } else {
+                retailer_profile.product_id = Some(vec![key.to_string()]);
+            }
+            state
+                .retailer
+                .insert(ic_cdk::api::caller(), retailer_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+pub fn controller_update_product(
+    key: String,
+    args: crate::models::product::Product,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(existing_product) = state.product.get(&key) {
+            let updated_promo = crate::models::product::Product {
+                name: if args.name.is_empty() {
+                    existing_product.name.clone()
+                } else {
+                    args.name.clone()
+                },
+                category_id: if args.category_id == 0 {
+                    existing_product.category_id
+                } else {
+                    args.category_id
+                },
+                brand: if args.brand.is_empty() {
+                    existing_product.brand.clone()
+                } else {
+                    args.brand.clone()
+                },
+                umbrella_brand: if args.umbrella_brand.is_empty() {
+                    existing_product.umbrella_brand.clone()
+                } else {
+                    args.umbrella_brand.clone()
+                },
+                regular_price: if args.regular_price == 0.0 {
+                    existing_product.regular_price
+                } else {
+                    args.regular_price
+                },
+                stock_level: if args.stock_level == 0 {
+                    existing_product.stock_level
+                } else {
+                    args.stock_level
+                },
+                supplier: if args.supplier.is_empty() {
+                    existing_product.supplier.clone()
+                } else {
+                    args.supplier.clone()
+                },
+                description: if args.description.is_empty() {
+                    existing_product.description.clone()
+                } else {
+                    args.description.clone()
+                },
+                start_date: if args.start_date == 0 {
+                    existing_product.start_date
+                } else {
+                    args.start_date
+                },
+                end_date: if args.end_date == 0 {
+                    existing_product.end_date
+                } else {
+                    args.end_date
+                },
+                original_price: if args.original_price == 0.0 {
+                    existing_product.original_price
+                } else {
+                    args.original_price
+                },
+                price_after_promotion: if args.price_after_promotion == 0.0 {
+                    existing_product.price_after_promotion
+                } else {
+                    args.price_after_promotion
+                },
+                promotion_description: if args.promotion_description.is_none() {
+                    existing_product.promotion_description.clone()
+                } else {
+                    args.promotion_description.clone()
+                },
+            };
+            state.product.insert(key.clone(), updated_promo);
+            Ok(())
+        } else {
+            Err(String::from(crate::utils::constants::ERROR_PROMO_NOT_FOUND))
+        }
+    })
+}
+
+pub fn controller_delete_product(key: String) -> Result<(), String> {
+    with_write_state(|state| {
+        match state.product.remove(&key) {
+            Some(_) => Ok(()), 
+            None => Err(String::from(crate::utils::constants::ERROR_PROMO_NOT_FOUND)), 
+        }
+    })
+}
+// this is the controller function to create a product.
+// pub fn controller_create_product(
+//     key: String,
+//     product: crate::models::product::Product, // Change args to product
+// ) -> Result<(), String> {
+//     with_write_state(|state| {
+//         if let Some(mut retailer_profile) = state.retailer.get(&ic_cdk::api::caller()) {
+//             if state.product.contains_key(&key.to_string()) {
+//                 return Err(String::from(
+//                     crate::utils::constants::WARNING_PRODUCT_EXISTS,
+//                 ));
+//             }
+//             if let Some(promo_ids) = &mut retailer_profile.product_id {
+//                 promo_ids.push(key.clone().to_string());
+//             } else {
+//                 retailer_profile.product_id = Some(vec![key.to_string()]);
+//             }
+//             state.product.insert(key.clone(), product);
+//             state
+//                 .retailer
+//                 .insert(ic_cdk::api::caller(), retailer_profile);
+//             Ok(())
+//         } else {
+//             Err(String::from(
+//                 crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+//             ))
+//         }
+//     })
+// }
+
+// // Function to update the product.
+// pub fn controller_update_product(
+//     key: String,
+//     args: crate::models::product::Product,
+// ) -> Result<(), String> {
+//     with_write_state(|state| {
+//         if state.retailer.get(&ic_cdk::api::caller()).is_some() {
+//             if let Some(existing_product) = state.product.get(&key) {
+//                 let updated_product = crate::models::product::Product {
+//                     name: if args.name.is_empty() {
+//                         existing_product.name.clone()
+//                     } else {
+//                         args.name.clone()
+//                     },
+//                     category_id: if args.category_id == 0 {
+//                         existing_product.category_id
+//                     } else {
+//                         args.category_id
+//                     },
+//                     brand: if args.brand.is_empty() {
+//                         existing_product.brand.clone()
+//                     } else {
+//                         args.brand.clone()
+//                     },
+//                     umbrella_brand: if args.umbrella_brand.is_empty() {
+//                         existing_product.umbrella_brand.clone()
+//                     } else {
+//                         args.umbrella_brand.clone()
+//                     },
+//                     regular_price: if args.regular_price == 0.0 {
+//                         existing_product.regular_price
+//                     } else {
+//                         args.regular_price
+//                     },
+//                     stock_level: if args.stock_level == 0 {
+//                         existing_product.stock_level
+//                     } else {
+//                         args.stock_level
+//                     },
+//                     supplier: if args.supplier.is_empty() {
+//                         existing_product.supplier.clone()
+//                     } else {
+//                         args.supplier.clone()
+//                     },
+//                     description: if args.description.is_empty() {
+//                         existing_product.description.clone()
+//                     } else {
+//                         args.description.clone()
+//                     },
+//                     start_date: if args.start_date == 0 {
+//                         existing_product.start_date
+//                     } else {
+//                         args.start_date
+//                     },
+//                     end_date: if args.end_date == 0 {
+//                         existing_product.end_date
+//                     } else {
+//                         args.end_date
+//                     },
+//                     original_price: if args.original_price == 0.0 {
+//                         existing_product.original_price
+//                     } else {
+//                         args.original_price
+//                     },
+//                     price_after_promotion: if args.price_after_promotion == 0.0 {
+//                         existing_product.price_after_promotion
+//                     } else {
+//                         args.price_after_promotion
+//                     },
+//                     promotion_description: if args.promotion_description.is_none() {
+//                         existing_product.promotion_description.clone()
+//                     } else {
+//                         args.promotion_description.clone()
+//                     },
+//                 };
+
+//                 // Update the stored product
+//                 state.product.insert(key.clone(), updated_product);
+//                 Ok(())
+//             } else {
+//                 Err(String::from(
+//                     crate::utils::constants::ERROR_PRODUCT_NOT_REGISTERED,
+//                 ))
+//             }
+//         } else {
+//             Err(String::from(
+//                 crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+//             ))
+//         }
+//     })
+// }
+
+
+// // main function from where we are calling the controller product create function.
+// #[ic_cdk::update]
+// pub fn api_create_product(key: String,args: crate::models::product::Product) -> Result<String, String> {
+//     super::products_controller::controller_create_product(key.clone(),args).map_err(|err| {
+//         format!(
+//             "{}{}",
+//             crate::utils::constants::ERROR_PRODUCT_ERROR,
+//             err.to_string()
+//         )
+//     })?;
+
+//     Ok(String::from(crate::utils::constants::SUCCESS_PRODUCT_CREATED))
+// }
+
+// // function to update the product.
+// #[ic_cdk::update]
+// pub fn api_update_product(key:String,args: crate::models::product::Product) -> Result<String, String> {
+//     super::products_controller::controller_update_product(key.clone(),args).map_err(|err| {
+//         format!(
+//             "{}{}",
+//             crate::utils::constants::ERROR_PRODUCT_ERROR,
+//             err.to_string()
+//         )
+//     })?;
+
+//     Ok(String::from(
+//         crate::utils::constants::SUCCESS_PRODUCT_UPDATED,
+//     ))
+// }
+// //adding promotion
+#[ic_cdk::update]
+pub fn api_add_farmer_product(key:String,args:crate::models::product::Product)-> Result<String, String> {
+    super::products_controller::controller_product_farmer(&key,args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::PROMO_ADD_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::PROMO_ADD_SUCCESS,
+    ))
+}
+
+#[ic_cdk::update]
+pub fn api_add_distributor_product(key:String,args:crate::models::product::Product)-> Result<String, String> {
+    super::products_controller::controller_product_distributor(&key,args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::PROMO_ADD_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::PROMO_ADD_SUCCESS,
+    ))
+}
+
+#[ic_cdk::update]
+pub fn api_add_retailer_product(key:String,args:crate::models::product::Product)-> Result<String, String> {
+    super::products_controller::controller_product_retailer(&key,args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::PROMO_ADD_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::PROMO_ADD_SUCCESS,
+    ))
+}
+#[ic_cdk::update]
+pub fn api_update_product(key:String,args: crate::models::product::Product) -> Result<String, String> {
+    super::products_controller::controller_update_product(key.clone(),args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_PROMOTION_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_PROMOTION_UPDATED,
+    ))
+}
+ 
+
+#[ic_cdk::update]
+pub fn api_delete_product(key:String) -> Result<String, String> {
+    super::products_controller::controller_delete_product(key.clone()).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_PROMOTION_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_PROMOTION_UPDATED,
+    ))
+}
+
+use crate::with_write_state;
+
+
+
+pub fn controller_create_farmer(
+    args: crate::models::farmer::Farmer,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if state.farmer.contains_key(&ic_cdk::api::caller()) {
+            return Err(String::from(
+                crate::utils::constants::WARNING_ACCOUNT_EXISTS,
+            ));
+        } else {
+        }
+        state.farmer.insert(ic_cdk::api::caller(), args);
+        state
+            .user
+            .insert(ic_cdk::api::caller(), "farmer".to_string());
+
+        Ok(())
+    })
+}
+
+pub fn controller_update_farmer(
+    args: crate::models::farmer::Farmer,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(existing_profile) = state.farmer.get(&ic_cdk::api::caller()) {
+            // Create an updated profile by keeping existing values for empty or `None` fields
+            let updated_profile = crate::models::farmer::Farmer{
+                data: if args.data.is_empty() {
+                    existing_profile.data.clone()
+                } else {
+                    args.data.clone()
+                },
+                signature: if args.signature.is_empty() {
+                    existing_profile.signature.clone()
+                } else {
+                    args.signature.clone()
+                },
+                product_id: if args.product_id.is_none() {
+                    existing_profile.product_id.clone()
+                } else {
+                    args.product_id.clone()
+                },
+                permission: if args.permission.is_none() {
+                    existing_profile.permission.clone()
+                } else {
+                    args.permission.clone()
+                },
+            };
+
+            // Update the stored retailer profile
+            state
+                .farmer
+                .insert(ic_cdk::api::caller(), updated_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+pub fn controller_create_distributor(
+    args: crate::models::distributor::Distributor,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if state.distributor.contains_key(&ic_cdk::api::caller()) {
+            return Err(String::from(
+                crate::utils::constants::WARNING_ACCOUNT_EXISTS,
+            ));
+        } else {
+        }
+        state.distributor.insert(ic_cdk::api::caller(), args);
+        state
+            .user
+            .insert(ic_cdk::api::caller(), "distributor".to_string());
+
+        Ok(())
+    })
+}
+
+pub fn controller_update_distributor(
+    args: crate::models::distributor::Distributor,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(existing_profile) = state.distributor.get(&ic_cdk::api::caller()) {
+            // Create an updated profile by keeping existing values for empty or `None` fields
+            let updated_profile = crate::models::distributor::Distributor {
+                data: if args.data.is_empty() {
+                    existing_profile.data.clone()
+                } else {
+                    args.data.clone()
+                },
+                signature: if args.signature.is_empty() {
+                    existing_profile.signature.clone()
+                } else {
+                    args.signature.clone()
+                },
+                product_id: if args.product_id.is_none() {
+                    existing_profile.product_id.clone()
+                } else {
+                    args.product_id.clone()
+                },
+                permission: if args.permission.is_none() {
+                    existing_profile.permission.clone()
+                } else {
+                    args.permission.clone()
+                },
+            };
+
+            // Update the stored retailer profile
+            state
+                .distributor
+                .insert(ic_cdk::api::caller(), updated_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+
+pub fn controller_create_retailer(
+    args: crate::models::retailer_types::RetailerProfile,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if state.retailer.contains_key(&ic_cdk::api::caller()) {
+            return Err(String::from(
+                crate::utils::constants::WARNING_ACCOUNT_EXISTS,
+            ));
+        } else {
+        }
+        state.retailer.insert(ic_cdk::api::caller(), args);
+        state
+            .user
+            .insert(ic_cdk::api::caller(), "retailer".to_string());
+
+        Ok(())
+    })
+}
+
+pub fn controller_update_retailer(
+    args: crate::models::retailer_types::RetailerProfile,
+) -> Result<(), String> {
+    with_write_state(|state| {
+        if let Some(existing_profile) = state.retailer.get(&ic_cdk::api::caller()) {
+            // Create an updated profile by keeping existing values for empty or `None` fields
+            let updated_profile = crate::models::retailer_types::RetailerProfile {
+                data: if args.data.is_empty() {
+                    existing_profile.data.clone()
+                } else {
+                    args.data.clone()
+                },
+                signature: if args.signature.is_empty() {
+                    existing_profile.signature.clone()
+                } else {
+                    args.signature.clone()
+                },
+                product_id: if args.product_id.is_none() {
+                    existing_profile.product_id.clone()
+                } else {
+                    args.product_id.clone()
+                },
+                permission: if args.permission.is_none() {
+                    existing_profile.permission.clone()
+                } else {
+                    args.permission.clone()
+                },
+            };
+
+            // Update the stored retailer profile
+            state
+                .retailer
+                .insert(ic_cdk::api::caller(), updated_profile);
+            Ok(())
+        } else {
+            Err(String::from(
+                crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+            ))
+        }
+    })
+}
+
+// //store creation
+// // pub fn controller_store_retailer(
+// //     key: &str,
+// //     args: crate::models::store_detail::StoreDetail,
+// // ) -> Result<(), String> {
+// //     with_write_state(|state| {
+// //         if let Some(mut retailer_profile) = state.retailer.get(&ic_cdk::api::caller()) {
+// //             if state.store.contains_key(&key.to_string()) {
+// //                 return Err(String::from(crate::utils::constants::WARNING_STORE_EXISTS));
+// //             }
+// //             state.store.insert(key.to_string(), args);
+// //             if let Some(store_ids) = &mut retailer_profile.store_id {
+// //                 store_ids.push(key.to_string());
+// //             } else {
+// //                 retailer_profile.store_id = Some(vec![key.to_string()]);
+// //             }
+// //             state
+// //                 .retailer
+// //                 .insert(ic_cdk::api::caller(), retailer_profile);
+// //             Ok(())
+// //         } else {
+// //             Err(String::from(
+// //                 crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+// //             ))
+// //         }
+// //     })
+// // }
+
+// //store upgradation
+// // pub fn controller_store_retailer_update(
+// //     key: String,
+// //     args: crate::models::store_detail::StoreDetail,
+// // ) -> Result<(), String> {
+// //     with_write_state(|state| {
+// //         if state.retailer.get(&ic_cdk::api::caller()).is_some() {
+// //             if let Some(existing_store) = state.store.get(&key.to_string()) {
+// //                 let updated_store = crate::models::store_detail::StoreDetail {
+// //                     store_type: if args.store_type.is_empty() {
+// //                         existing_store.store_type.clone()
+// //                     } else {
+// //                         args.store_type.clone()
+// //                     },
+// //                     country: if args.country.is_empty() {
+// //                         existing_store.country.clone()
+// //                     } else {
+// //                         args.country.clone()
+// //                     },
+// //                     state: if args.state.is_empty() {
+// //                         existing_store.state.clone()
+// //                     } else {
+// //                         args.state.clone()
+// //                     },
+// //                     postal_code: if args.postal_code.is_empty() {
+// //                         existing_store.postal_code.clone()
+// //                     } else {
+// //                         args.postal_code.clone()
+// //                     },
+// //                     city: if args.city.is_empty() {
+// //                         existing_store.city.clone()
+// //                     } else {
+// //                         args.city.clone()
+// //                     },
+// //                     phone_number: if args.phone_number.is_empty() {
+// //                         existing_store.phone_number.clone()
+// //                     } else {
+// //                         args.phone_number.clone()
+// //                     },
+// //                     email: if args.email.is_empty() {
+// //                         existing_store.email.clone()
+// //                     } else {
+// //                         args.email.clone()
+// //                     },
+// //                     total_product: if args.total_product == 0 {
+// //                         existing_store.total_product
+// //                     } else {
+// //                         args.total_product
+// //                     },
+// //                     total_supplier: if args.total_supplier == 0 {
+// //                         existing_store.total_supplier
+// //                     } else {
+// //                         args.total_supplier
+// //                     },
+// //                     total_promotion: if args.total_promotion == 0 {
+// //                         existing_store.total_promotion
+// //                     } else {
+// //                         args.total_promotion
+// //                     },
+// //                     total_sales: if args.total_sales == 0 {
+// //                         existing_store.total_sales
+// //                     } else {
+// //                         args.total_sales
+// //                     },
+// //                     total_units_sold: if args.total_units_sold == 0 {
+// //                         existing_store.total_units_sold
+// //                     } else {
+// //                         args.total_units_sold
+// //                     },
+// //                     top_selling_product: if args.top_selling_product.is_empty() {
+// //                         existing_store.top_selling_product.clone()
+// //                     } else {
+// //                         args.top_selling_product.clone()
+// //                     },
+// //                 };
+
+// //                 // Update the stored store profile
+// //                 state.store.insert(key.clone(), updated_store);
+// //                 Ok(())
+// //             } else {
+// //                 Err(String::from(crate::utils::constants::ERROR_STORE_NOT_REGISTERED))
+// //             }
+// //         } else {
+// //             Err(String::from(
+// //                 crate::utils::constants::ERROR_ACCOUNT_NOT_REGISTERED,
+// //             ))
+// //         }
+// //     })
+// // }
+
+
+
+use crate::utils::guards::*;
+
+
+//account creation
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_create_farmer(args: crate::models::farmer::Farmer) -> Result<String, String> {
+    super::user_controller::controller_create_farmer(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_CREATED,
+    ))
+}
+
+//retailer update
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_update_farmer(args: crate::models::farmer::Farmer) -> Result<String, String> {
+    super::user_controller::controller_update_farmer(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_UPDATED,
+    ))
+}
+//account creation
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_create_distributor(args: crate::models::distributor::Distributor) -> Result<String, String> {
+    super::user_controller::controller_create_distributor(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_CREATED,
+    ))
+}
+
+//retailer update
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_update_distributor(args: crate::models::distributor::Distributor) -> Result<String, String> {
+    super::user_controller::controller_update_distributor(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_UPDATED,
+    ))
+}
+//account creation
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_create_retailer(args: crate::models::retailer_types::RetailerProfile) -> Result<String, String> {
+    super::user_controller::controller_create_retailer(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_CREATED,
+    ))
+}
+
+//retailer update
+#[ic_cdk::update(guard=guard_prevent_user_recreation)]
+pub fn api_update_retailer(args: crate::models::retailer_types::RetailerProfile) -> Result<String, String> {
+    super::user_controller::controller_update_retailer(args).map_err(|err| {
+        format!(
+            "{}{}",
+            crate::utils::constants::ERROR_ACCOUNT_ERROR,
+            err.to_string()
+        )
+    })?;
+
+    Ok(String::from(
+        crate::utils::constants::SUCCESS_ACCOUNT_UPDATED,
+    ))
+}
+
+
+// //adding store detail
+// #[ic_cdk::update(guard=guard_prevent_anonymous_retailer)]
+// pub fn api_add_retailer_store(key:String,args:crate::models::store_detail::StoreDetail)-> Result<String, String> {
+//     super::retailer_controller::controller_store_retailer(&key,args).map_err(|err| {
+//         format!(
+//             "{}{}",
+//             crate::utils::constants::ERROR_STORE_ERROR,
+//             err.to_string()
+//         )
+//     })?;
+
+//     Ok(String::from(
+//         crate::utils::constants::SUCCESS_STORE_CREATED,
+//     ))
+// }
+
+// //upgrading store detail
+// #[ic_cdk::update(guard=guard_prevent_anonymous_retailer)]
+// pub fn api_update_retailer_store(key:String,args:crate::models::store_detail::StoreDetail)-> Result<String, String> {
+//     super::retailer_controller::controller_store_retailer_update(key.clone(),args).map_err(|err| {
+//         format!(
+//             "{}{}",
+//             crate::utils::constants::ERROR_STORE_ERROR,
+//             err.to_string()
+//         )
+//     })?;
+
+//     Ok(String::from(
+//         crate::utils::constants::SUCCESS_STORE_UPDATED,
+//     ))
+// }
+
+
+pub mod queries;
+pub mod updates;
+
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct Agriculture {
+    pub data: Vec<u8>,           
+    pub signing_key:  Vec<u8>,   
+    pub verifying_key: Vec<u8>,
+}
+
+impl Storable for Agriculture {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct Customer {
+    pub data: Vec<u8>,
+    pub signature:  Vec<u8>,
+    pub product_id:Option<Vec<String>>,
+    pub permission:Option<Vec<candid::Principal>>,
+}
+
+impl Storable for Customer {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct Distributor {
+    pub data: Vec<u8>,
+    pub signature:  Vec<u8>,
+    pub product_id:Option<Vec<String>>,
+    pub permission:Option<Vec<candid::Principal>>,
+}
+
+impl Storable for Distributor {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct Farmer {
+    pub data: Vec<u8>,
+    pub signature:  Vec<u8>,
+    pub product_id:Option<Vec<String>>, 
+    pub permission:Option<Vec<candid::Principal>>,  
+}
+
+impl Storable for Farmer {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+
+pub mod distributor;
+pub mod retailer_types;
+pub mod customer;
+pub mod product;
+pub mod farmer;
+pub mod agriculture;
+
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct Product {
+    pub name: String,                       // Changed product_name to name
+    pub category_id: u64,                   // Changed category to category_id
+    pub brand: String,
+    pub umbrella_brand: String,             // Changed umbrella_brand_name to umbrella_brand
+    pub regular_price: f64,                 // Changed type to f64 for numeric price
+    pub stock_level: u64,                   // Changed type to u64 for numeric stock level
+    pub supplier: String,                   // Changed supplier_name to supplier
+    pub description: String,                // Changed product_desc to description
+    pub start_date: u64,                    // Changed start_data to start_date and type to u64 for timestamp
+    pub end_date: u64,                      // Changed end_data to end_date and type to u64 for timestamp
+    pub original_price: f64,                // Changed type to f64 for numeric price
+    pub price_after_promotion: f64,         // Changed type to f64 for numeric price
+    pub promotion_description: Option<String>, // Changed promotion_desc to promotion_description
+}
+
+impl Storable for Product {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+
+
+use std::borrow::Cow;
+
+use candid::{CandidType, Decode, Encode};
+use ic_stable_structures::{storable::Bound, Storable};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, CandidType, PartialEq, Debug, Serialize, Deserialize)]
+pub(crate) struct RetailerProfile {
+    pub data: Vec<u8>,
+    pub signature:  Vec<u8>,
+    pub product_id:Option<Vec<String>>,
+    pub permission:Option<Vec<candid::Principal>>,
+}
+
+impl Storable for RetailerProfile {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: crate::utils::constants::STORABLE_USER_MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+
+use std::cell::RefCell;
+
+use ic_stable_structures::{memory_manager::{MemoryId, MemoryManager}, DefaultMemoryImpl};
+
+const AGRICULTURE_DATA: MemoryId = MemoryId::new(0);
+const PRODUCT_DATA: MemoryId = MemoryId::new(1);
+const RETAILER_DATA: MemoryId = MemoryId::new(2);
+const CUSTOMER_DATA:MemoryId=MemoryId::new(3);
+const FARMER_DATA:MemoryId=MemoryId::new(4);
+const DISTRIBUTOR_DATA:MemoryId=MemoryId::new(5);
+const STORE_DATA:MemoryId=MemoryId::new(6);
+
+pub type StoreMemory = ic_stable_structures::memory_manager::VirtualMemory<DefaultMemoryImpl>;
+
+
+thread_local! {
+  static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+      RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
+}
+
+pub fn get_agriculture_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(AGRICULTURE_DATA))
+}
+pub fn get_product_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(PRODUCT_DATA))
+}
+
+pub fn get_retailer_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(RETAILER_DATA))
+}
+pub fn get_customer_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(CUSTOMER_DATA))
+}
+pub fn get_farmer_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(FARMER_DATA))
+}
+// this is our function for the user.
+pub fn get_distributor_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(DISTRIBUTOR_DATA))
+}
+pub fn get_store_data_memory() -> StoreMemory {
+  MEMORY_MANAGER.with(|m| m.borrow().get(STORE_DATA))
+}
+
+
+mod memory;
+pub mod storage_state;
+
+
+use ic_stable_structures::StableBTreeMap;
+use std::string::String;
+
+use crate::models::distributor::Distributor;
+use crate::models::farmer::Farmer;
+use crate::models::product::Product;
+use crate::models::customer::Customer;
+use crate::models::retailer_types::RetailerProfile;
+use crate::models::agriculture::Agriculture;
+
+
+use super::memory::StoreMemory;
+
+pub(crate) struct ApplicationState {
+    pub agriculture_department: StableBTreeMap<candid::Principal, Agriculture, StoreMemory>,
+    pub retailer: StableBTreeMap<candid::Principal, RetailerProfile, StoreMemory>,
+    pub customer: StableBTreeMap<candid::Principal, Customer, StoreMemory>,
+    pub product: StableBTreeMap<String, Product, StoreMemory>,
+    pub farmer: StableBTreeMap<candid::Principal, Farmer, StoreMemory>,
+    pub distributor: StableBTreeMap<candid::Principal, Distributor, StoreMemory>,
+    pub user:StableBTreeMap<candid::Principal, String, StoreMemory>,
+}
+
+impl ApplicationState {
+    pub fn new() -> Self {
+        Self {
+            agriculture_department: init_agriculture_state(),
+            product: product_state(),
+            retailer: init_retailer_state(),
+            customer: init_customer_state(),
+            farmer: farmer_state(),
+            distributor: distributor_state(),
+            user:init_user_state(),
+        }
+    }
+}
+
+fn init_agriculture_state() -> StableBTreeMap<candid::Principal,  Agriculture, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_agriculture_data_memory())
+}
+fn product_state() -> StableBTreeMap<String, Product, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_product_data_memory())
+}
+fn init_retailer_state() -> StableBTreeMap<candid::Principal, RetailerProfile, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_retailer_data_memory())
+}
+fn init_customer_state() -> StableBTreeMap<candid::Principal, Customer, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_customer_data_memory())
+}
+fn farmer_state() -> StableBTreeMap<candid::Principal, Farmer, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_farmer_data_memory())
+}
+// user function ---> to use.
+fn distributor_state() -> StableBTreeMap<candid::Principal, Distributor, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_distributor_memory())
+}
+//for store detail in retailer
+fn init_user_state() -> StableBTreeMap<candid::Principal, String, StoreMemory> {
+    StableBTreeMap::init(crate::store::memory::get_store_data_memory())
+}
+
+
+pub const ESSENTIALS_APP_NAME: &str = "dabarcodes";
+
+// WARNINGS
+pub const WARNING_ANONYMOUS_CALL: &str = "Anonymous principal not allowed !";
+pub const WARNING_ACCOUNT_EXISTS: &str = "Principal ID is already registered with the platform";
+pub const WARNING_PRODUCT_EXISTS: &str = "Product of this id already exist";
+pub const WARNING_EMPLOYEE_EXISTS: &str = "Employee of this id already exist";
+pub const WARNING_STORE_EXISTS: &str = "Store of this id already exist";
+pub const WARNING_PROMOTION_EXISTS: &str = "Promotion of this id already exist";
+
+// Erros
+pub const ERROR_ACCOUNT_ERROR: &str = "Accounts Error: ";
+pub const ERROR_ACCOUNT_NOT_REGISTERED: &str = "Principal id is not registered with the platform";
+pub const ERROR_PRODUCT_ERROR: &str = "Product Error: ";
+pub const ERROR_PRODUCT_NOT_REGISTERED: &str = "Product id is not registered with the platform";
+pub const ERROR_EMPLOYEE_ERROR: &str = "Employee Error: ";
+pub const ERROR_EMPLOYEE_NOT_REGISTERED: &str = "Employee id is not registered with the platform";
+pub const ERROR_STORE_ERROR: &str = "STORE Error: ";
+pub const ERROR_STORE_NOT_REGISTERED: &str = "Store id is not registered with the platform";
+
+//promo retailer
+pub const  PROMO_ADD_ERROR:&str = "Failed to add Promotion: ";
+pub const  PROMO_ADD_SUCCESS:&str = "Successfull in adding Promotion: ";
+pub const ERROR_PROMO_NOT_FOUND:&str="Promotion not found";
+pub const SUCCESS_PROMOTION_UPDATED:&str="Promotion updated successfully";
+pub const ERROR_PROMOTION_ERROR:&str="Not able to update";
+
+// SUCCESS
+pub const SUCCESS_ACCOUNT_CREATED: &str = "Account successfully created";
+pub const SUCCESS_ACCOUNT_UPDATED: &str = "Account successfully update";
+pub const SUCCESS_PRODUCT_UPDATED: &str = "product successfully updated";
+pub const SUCCESS_PRODUCT_CREATED: &str = "product successfully created";
+pub const SUCCESS_EMPLOYEE_UPDATED: &str = "Employee successfully updated";
+pub const SUCCESS_EMPLOYEE_CREATED: &str = "Employee successfully created";
+pub const SUCCESS_STORE_CREATED: &str = "Store successfully created";
+pub const SUCCESS_STORE_UPDATED: &str = "Store successfully updated";
+//pub const SUBSCRIPTION_SUCCESSFUL:&str = "Subscription succesfull";
+
+
+// storable value sizes
+pub const STORABLE_USER_MAX_VALUE_SIZE: u32 = 600;
+
+
+use crate::with_read_state;
+
+// pub fn guard_only_agriculture() -> Result<(), String> {
+//         match id{
+//             Ok(admin_id) if admin_id == caller().to_text() => Ok(()),
+//             _ => Err(String::from(crate::utils::constants::WARNING_ANONYMOUS_CALL)),
+//         }
+// }
+
+pub fn guard_check_admin() -> Result<(), String> {
+    with_read_state(|state| {
+        match state.user.get(&ic_cdk::api::caller()) {
+            Some(role) if role == "admin" => Ok(()),  // Check if the role is "admin"
+            _ => Err(String::from(crate::utils::constants::WARNING_ANONYMOUS_CALL)),
+        }
+    })
+}
+// pub fn guard_prevent_anonymous_retailer() -> Result<(), String> {
+//     with_read_state(|state| { 
+//         if state.retailer.contains_key(&ic_cdk::api::caller()) {
+//             Ok(()) 
+//         } else {
+//             Err(String::from(crate::utils::constants::WARNING_ANONYMOUS_CALL)) 
+//         }
+//     })
+// }
+pub fn guard_prevent_user_recreation()-> Result<(), String> {
+    with_read_state(|state| { 
+        if state.user.contains_key(&ic_cdk::api::caller()) {
+              Err(String::from(crate::utils::constants::WARNING_ANONYMOUS_CALL)) 
+        } else {
+            Ok(())
+        }
+    })
+}
+
+pub(crate) mod constants;
+pub(crate) mod guards;
+
+
+use store::storage_state::ApplicationState;
+mod api;
+mod models;
+mod store;
+mod utils;
+
+
+thread_local! {
+    static STATE: std::cell::RefCell<ApplicationState> = std::cell::RefCell::new(ApplicationState::new());
+}
+
+// to get mutable reference
+pub(crate) fn with_write_state<R>(f: impl FnOnce(&mut ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+// to get inmutable reference
+pub(crate) fn with_read_state<R>(f: impl FnOnce(&ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&cell.borrow()))
+}
+
+ic_cdk::export_candid!();
+use store::storage_state::ApplicationState;
+mod api;
+mod models;
+mod store;
+mod utils;
+
+
+thread_local! {
+    static STATE: std::cell::RefCell<ApplicationState> = std::cell::RefCell::new(ApplicationState::new());
+}
+
+// to get mutable reference
+pub(crate) fn with_write_state<R>(f: impl FnOnce(&mut ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+// to get inmutable reference
+pub(crate) fn with_read_state<R>(f: impl FnOnce(&ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&cell.borrow()))
+}
+
+ic_cdk::export_candid!();
+
+
+use store::storage_state::ApplicationState;
+mod api;
+mod models;
+mod store;
+mod utils;
+
+
+thread_local! {
+    static STATE: std::cell::RefCell<ApplicationState> = std::cell::RefCell::new(ApplicationState::new());
+}
+
+// to get mutable reference
+pub(crate) fn with_write_state<R>(f: impl FnOnce(&mut ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&mut cell.borrow_mut()))
+}
+
+// to get inmutable reference
+pub(crate) fn with_read_state<R>(f: impl FnOnce(&ApplicationState) -> R) -> R {
+    STATE.with(|cell| f(&cell.borrow()))
+}
+
+ic_cdk::export_candid!();
+
+
+
+type Agriculture = record {
+  verifying_key : blob;
+  data : blob;
+  signing_key : blob;
+};
+type Distributor = record {
+  permission : opt vec principal;
+  signature : blob;
+  product_id : opt vec text;
+  data : blob;
+};
+type Farmer = record {
+  permission : opt vec principal;
+  signature : blob;
+  product_id : opt vec text;
+  data : blob;
+};
+type Product = record {
+  supplier : text;
+  name : text;
+  description : text;
+  end_date : nat64;
+  stock_level : nat64;
+  start_date : nat64;
+  promotion_description : opt text;
+  umbrella_brand : text;
+  regular_price : float64;
+  brand : text;
+  original_price : float64;
+  category_id : nat64;
+  price_after_promotion : float64;
+};
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : vec Product; Err : text };
+type Result_2 = variant { Ok : Agriculture; Err : text };
+type Result_3 = variant { Ok : Farmer; Err : text };
+type Result_4 = variant { Ok : Farmer; Err : text };
+type Result_5 = variant { Ok : Product; Err : text };
+service : {
+  api_add_distributor_product : (text, Product) -> (Result);
+  api_add_farmer_product : (text, Product) -> (Result);
+  api_add_retailer_product : (text, Product) -> (Result);
+  api_create_account : (Agriculture) -> (Result);
+  api_create_distributor : (Distributor) -> (Result);
+  api_create_farmer : (Farmer) -> (Result);
+  api_create_retailer : (Farmer) -> (Result);
+  api_delete_account : (principal) -> (Result);
+  api_delete_product : (text) -> (Result);
+  api_get_all_product : () -> (Result_1) query;
+  api_get_my_account : () -> (Result_2) query;
+  api_get_my_distributor : () -> (Result_3) query;
+  api_get_my_farmer : () -> (Result_4) query;
+  api_get_my_product : (text) -> (Result_5) query;
+  api_get_my_retailer : () -> (Result_4) query;
+  api_get_product_distributor : () -> (Result_1) query;
+  api_get_product_farmer : () -> (Result_1) query;
+  api_get_product_retailer : () -> (Result_1) query;
+  api_update_account : (Agriculture) -> (Result);
+  api_update_distributor : (Farmer) -> (Result);
+  api_update_farmer : (Farmer) -> (Result);
+  api_update_product : (text, Product) -> (Result);
+  api_update_retailer : (Farmer) -> (Result);
+ api_verification : (principal) -> (Result_6) query;
+}
+
+
+and for farmer,dist and retailer i will take string input from user and then hash it and save it in data and then use admin generated private key to generate their signature and store it in the signature part and for verification i will use their signature and admin public key 
